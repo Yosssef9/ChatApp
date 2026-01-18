@@ -1,14 +1,25 @@
 import { getOnlineUsers } from "./presenceSocket.js";
 import { Message } from "../models/Message.js";
 import { Conversation } from "../models/Conversation.js";
+
 export const chatSocket = (io, socket) => {
   socket.on(
     "join-conversation",
     async ({ conversationId, userId, otherUserId }) => {
       console.log("userId in join-conversation", userId);
-
+      socket.emit("userIsOnTheChat", otherUserId);
       socket.userId = userId;
       socket.join(conversationId);
+      const onlineUsers = getOnlineUsers();
+
+      const otherUserSocket = onlineUsers.get(otherUserId);
+
+      if (otherUserSocket) {
+        io.to(otherUserSocket).emit("user-in-chat", {
+          conversationId,
+          userId,
+        });
+      }
 
       const result = await Message.updateMany(
         {
@@ -33,8 +44,18 @@ export const chatSocket = (io, socket) => {
       }
     }
   );
-  socket.on("leave-conversation", ({ conversationId }) => {
+  socket.on("leave-conversation", ({ conversationId, otherUserId, userId }) => {
     socket.leave(conversationId);
+    const onlineUsers = getOnlineUsers();
+
+    const otherUserSocket = onlineUsers.get(otherUserId);
+
+    if (otherUserSocket) {
+      io.to(otherUserSocket).emit("user-left-chat", {
+        conversationId,
+        userId,
+      });
+    }
   });
 
   socket.on("send-message", async ({ msg, conversationId }) => {
@@ -111,4 +132,56 @@ export const chatSocket = (io, socket) => {
     }
     socket.emit("receive-message", message);
   });
+
+  socket.on(
+    "send-reaction",
+    async ({ messageId, type, userId, conversationId, reciverId }) => {
+      console.log("send-reaction");
+      console.log("messageId", messageId);
+      console.log("type", type);
+      console.log("userId", userId);
+      console.log("send-reaction conversationId", conversationId);
+      console.log("send-reaction reciverId", reciverId);
+
+      const message = await Message.findById(messageId);
+      if (!message) return;
+
+      // Add reaction or update if user already reacted
+      const existing = message.reactions.find(
+        (r) => r.user.toString() === userId
+      );
+
+      if (existing) {
+        if (existing.type === type) {
+          message.reactions = message.reactions.filter(
+            (r) => r.user.toString() !== userId
+          );
+        } else {
+          existing.type = type; // update reaction
+        }
+      } else {
+        message.reactions.push({ user: userId, type });
+      }
+
+      await message.save();
+      // Emit to all participants of the chat
+      socket.emit("reaction-updated", message); // للـ sender
+      io.to(socket.id).emit("reaction-updated", message);
+      const onlineUsers = getOnlineUsers();
+      for (const [userId, socketId] of onlineUsers.entries()) {
+        console.log("User:", userId, "Socket:", socketId);
+      }
+
+      const receiverSocketId = onlineUsers.get(reciverId);
+      console.log("send-reaction receiverSocketId", receiverSocketId);
+      console.log("send-reaction message", message);
+      console.log(
+        "send-reaction message.to.toString()::",
+        message.to.toString()
+      );
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit("reaction-updated", message); // للـ receiver
+      }
+    }
+  );
 };

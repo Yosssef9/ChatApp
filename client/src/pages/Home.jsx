@@ -1,5 +1,7 @@
-import { Search, Ellipsis, SendHorizontal } from "lucide-react";
+import { Search, Ellipsis, X } from "lucide-react";
 import { useAuth } from "../Context/AuthContext";
+import { motion, AnimatePresence } from "framer-motion";
+import { useSwipeable } from "react-swipeable";
 
 import { useState, useEffect, useRef } from "react";
 import api from "../api/api";
@@ -9,14 +11,19 @@ import ChatItem from "../components/ChatItem";
 import MessageList from "../components/MessageList";
 import ChatList from "../components/ChatList";
 import { Menu } from "lucide-react";
-
 export default function Home() {
   const { user } = useAuth();
   console.log("user", user);
+  const socketUrl = "http://localhost:3000";
+  // const socketUrl = "https://bwsxd8pq-3000.uks1.devtunnels.ms";
   const socketRef = useRef(null);
   const [typingUsers, setTypingUsers] = useState({});
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
+  const [isLoadingSearching, setIsLoadingSearching] = useState(false);
+  const [isLoadingRecentChats, setIsLoadingRecentChats] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
+  const [usersInChat, setUsersInChat] = useState({});
+  console.log("usersInChat", usersInChat);
   console.log("typingUsers", typingUsers);
   const [searchInput, setSearchInput] = useState("");
   const [activeChatUser, setActiveChatUser] = useState(null);
@@ -27,24 +34,28 @@ export default function Home() {
   console.log("activeChatUser:", activeChatUser);
   console.log("recentChats:", recentChats);
   useEffect(() => {
+    if (!searchInput) {
+      setResults([]);
+      setIsLoadingSearching(false);
+      return;
+    }
+
+    setIsLoadingSearching(true); // 🔹 set loading immediately
+
     const fetchResults = async () => {
-      if (!searchInput) {
-        setResults([]);
-        return;
-      }
       try {
         const res = await api.get(`/users/searchUsers?q=${searchInput}`, {
           withCredentials: true,
         });
         setResults(res.data);
-        console.log("searchUsers:", res);
       } catch (err) {
         console.error("Search error:", err);
+      } finally {
+        setIsLoadingSearching(false);
       }
     };
 
-    // debounce 300ms
-    const timeoutId = setTimeout(fetchResults, 300);
+    const timeoutId = setTimeout(fetchResults, 300); // debounce API call
 
     return () => clearTimeout(timeoutId);
   }, [searchInput]);
@@ -52,8 +63,9 @@ export default function Home() {
   useEffect(() => {
     if (!user?.id) return;
 
-    socketRef.current = io("http://localhost:3000", {
+    socketRef.current = io(socketUrl, {
       withCredentials: true,
+      transports: ["websocket", "polling"],
     });
 
     socketRef.current.emit("user-online", user.id);
@@ -108,6 +120,9 @@ export default function Home() {
     clickedConversation.unSeenMsgsNumber = 0;
     console.log("clickedConversation", clickedConversation);
     setActiveChatUser(clickedConversation);
+    if (window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
     socketRef.current.emit("join-conversation", {
       conversationId: clickedConversation.id,
       userId: user.id,
@@ -135,15 +150,58 @@ export default function Home() {
       if (activeChatUser?.id) {
         socket.emit("leave-conversation", {
           conversationId: activeChatUser.id,
+          userId: user.id,
+          otherUserId: activeChatUser.user.id,
         });
         console.log("Left conversation", activeChatUser.id);
       }
     };
   }, [activeChatUser]);
+  //check if user in the chat
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    socket.on("user-in-chat", ({ conversationId }) => {
+      setUsersInChat((prev) => ({
+        ...prev,
+        [conversationId]: true,
+      }));
+    });
+
+    socket.on("user-left-chat", ({ conversationId }) => {
+      setUsersInChat((prev) => ({
+        ...prev,
+        [conversationId]: false,
+      }));
+    });
+
+    return () => {
+      socket.off("user-in-chat");
+      socket.off("user-left-chat");
+    };
+  }, []);
+
+  // online users
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+
+    const handleOnlineUsers = (usersArray) => {
+      setOnlineUsers(new Set(usersArray)); // store IDs as a Set for easy lookup
+    };
+
+    socket.on("online-users", handleOnlineUsers);
+
+    return () => {
+      socket.off("online-users", handleOnlineUsers);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchRecentChats = async () => {
       try {
+        setIsLoadingRecentChats(true);
         const res = await api.get("/users/getRecentChatsUsers", {
           withCredentials: true,
         });
@@ -151,6 +209,8 @@ export default function Home() {
         console.log("setRecentChats res", res);
       } catch (err) {
         console.error("Failed to fetch recent chats:", err);
+      } finally {
+        setIsLoadingRecentChats(false);
       }
     };
     fetchRecentChats();
@@ -223,6 +283,14 @@ export default function Home() {
     };
   }, []);
 
+  const sideBarHandlers = useSwipeable({
+    onSwipedRight: () => setIsSidebarOpen(true),
+    onSwipedLeft: () => setIsSidebarOpen(false),
+    trackTouch: true,
+    delta: 25, // المسافة المطلوبة للسحب
+    preventDefaultTouchmoveEvent: true, // يمنع scroll أثناء السحب
+  });
+
   return (
     <div className="flex h-screen gap-5 ">
       {/* Overlay */}
@@ -232,10 +300,18 @@ export default function Home() {
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
+      {/* Invisible swipe area for opening */}
+      {!isSidebarOpen && (
+        <div
+          {...sideBarHandlers}
+          className="fixed top-0 left-0 z-40 h-screen w-24"
+        />
+      )}
       {/* Sidebar */}
       <div
+        {...sideBarHandlers}
         className={`
-    fixed md:static z-40
+    fixed md:static z-51
     flex flex-col p-4 gap-5
     h-screen
     bg-gray-100
@@ -246,20 +322,37 @@ export default function Home() {
       >
         {/* ❌ Close Button (Mobile only) */}
         <button
-          className="md:hidden self-end p-2 hover:bg-gray-200 rounded-lg"
+          aria-label="Close sidebar"
           onClick={() => setIsSidebarOpen(false)}
+          className="
+    md:hidden
+    self-end
+    p-2
+    rounded-full
+    text-gray-600
+    hover:bg-gray-200
+    hover:text-gray-900
+    focus:outline-none
+    focus:ring-2
+    focus:ring-gray-300
+    transition
+    duration-200
+    active:scale-95
+  "
         >
-          ✕
+          <X size={20} />
         </button>
 
         {/* Profile */}
-        <div className="flex items-center gap-2">
-          <img
-            src="https://www.svgrepo.com/show/384670/account-avatar-profile-user.svg"
-            alt=""
-            className="h-16"
-          />
-          <h1 className="font-bold">{user.username}</h1>
+        <div className="flex items-center gap-3 bg-blue-700 p-3 rounded-xl shadow-md">
+          <div className="relative">
+            <img
+              src="https://www.svgrepo.com/show/384670/account-avatar-profile-user.svg"
+              className="h-14 w-14 rounded-full border-2 border-white"
+            />
+            <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full" />
+          </div>
+          <h1 className="text-white font-semibold">{user.username}</h1>
         </div>
 
         {/* Search + Chat List */}
@@ -272,7 +365,9 @@ export default function Home() {
             />
             <input
               type="text"
-              className="w-full rounded-xl border border-gray-300 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded-xl border border-gray-300 bg-gray-50 py-2.5 pl-10 pr-4 text-sm outline-none
+             placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30
+             transition-shadow duration-200 hover:shadow-sm"
               placeholder="Search..."
               onChange={(e) => setSearchInput(e.target.value)}
             />
@@ -287,41 +382,85 @@ export default function Home() {
             activeChatUser={activeChatUser}
             getUserMessages={getUserMessages}
             typingUsers={typingUsers}
+            isLoadingSearching={isLoadingSearching}
+            isLoadingRecentChats={isLoadingRecentChats}
+            onlineUsersMap={onlineUsers}
           />
         </div>
       </div>
 
       {/* Main Chat Area */}
       {activeChatUser ? (
-        <div className="flex-1 flex flex-col bg-gray-50">
-          {/* Header */}
-          <div className="flex justify-between items-center p-4 bg-gray-200 rounded-2xl">
+        <div className="flex-1 flex flex-col bg-gray-50  rounded-2xl shadow-inner overflow-hidden">
+          <div className="flex justify-between items-center p-4 bg-gradient-to-r from-blue-400 to-blue-600 rounded-t-2xl text-white">
             <div className="flex items-center gap-2">
               <button
-                className="md:hidden p-2 rounded-lg hover:bg-gray-300"
+                aria-label="Open sidebar"
                 onClick={() => setIsSidebarOpen(true)}
+                className="
+    md:hidden
+    p-2
+    z-50
+    rounded-full
+    text-white
+    hover:bg-gray-200
+    hover:text-gray-400
+    focus:outline-none
+    focus:ring-2
+    focus:ring-gray-300
+    transition
+    duration-200
+    active:scale-95
+  "
               >
                 <Menu size={22} />
               </button>
+              <div className="relative">
+                <img
+                  src="https://www.svgrepo.com/show/384670/account-avatar-profile-user.svg"
+                  className="h-16 w-16 rounded-full border-2 border-white"
+                />
+                <span
+                  className={`absolute bottom-0 right-0 w-3 h-3 ${
+                    onlineUsers.has(activeChatUser.user.id)
+                      ? "bg-green-500"
+                      : "bg-gray-400"
+                  }  border-2 border-border-white rounded-full`}
+                />
+              </div>
+              <div className="flex flex-col leading-tight">
+                <h1 className="font-semibold text-white">
+                  {activeChatUser.user.username}
+                </h1>
 
-              <img
-                src="https://www.svgrepo.com/show/384670/account-avatar-profile-user.svg"
-                className="h-16"
-              />
-              <h1 className="font-bold">{activeChatUser.user.username}</h1>
+                <AnimatePresence>
+                  {usersInChat[activeChatUser.id] && (
+                    <motion.span
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      className="text-xs text-green-300"
+                    >
+                      Viewing chat
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
 
             <Ellipsis />
           </div>
 
-          {/* Messages */}
           <MessageList
+            socket={socketRef.current}
             messages={messages}
+            setMessages={setMessages}
             currentUserId={user.id}
+            activeChatUser={activeChatUser}
             isTyping={typingUsers[activeChatUser.id] || false}
           />
 
-          {/* Input at bottom */}
           <MessageInput
             text={text}
             onChange={(value) => setText(value)}
@@ -332,8 +471,27 @@ export default function Home() {
           />
         </div>
       ) : (
-        <div className="flex-1 flex justify-center items-center">
-          select user to start chat
+        <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="relative">
+              <img
+                src="https://www.svgrepo.com/show/384670/account-avatar-profile-user.svg"
+                className="h-24 w-24 opacity-70"
+              />
+              <span className="absolute -bottom-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                Chat
+              </span>
+            </div>
+
+            <h2 className="text-xl font-semibold text-gray-700">
+              Start a conversation
+            </h2>
+
+            <p className="text-sm text-gray-500 max-w-xs">
+              Select a user from the left panel to view messages or send a new
+              one
+            </p>
+          </div>
         </div>
       )}
     </div>

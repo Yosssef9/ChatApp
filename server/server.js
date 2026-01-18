@@ -10,13 +10,18 @@ import messageRoutes from "./routes/messageRoutes.js";
 import { initSockets } from "./sockets/index.js";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
-
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://bwsxd8pq-5173.uks1.devtunnels.ms",
+];
 const app = express();
+app.set("trust proxy", 1); // trust first proxy (your dev tunnel)
+
 app.use(morgan("dev"));
 app.use(express.json());
 app.use(
   cors({
-    origin: "http://localhost:5173", // your frontend URL
+    origin: allowedOrigins, // your frontend URL
     credentials: true, // allow cookies
   })
 );
@@ -27,11 +32,13 @@ app.use("/api/messages", messageRoutes);
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
 });
 
-httpServer.listen(3000, () => console.log("Server running on port 3000"));
+httpServer.listen(3000, "0.0.0.0", () =>
+  console.log("Server running on port 3000")
+);
 initSockets(io);

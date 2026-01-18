@@ -10,6 +10,8 @@ export default function Signup() {
     confirmPassword: "",
   });
   const navigate = useNavigate();
+  const [errorMsg, setErrorMsg] = useState("");
+
   const { register } = useAuth();
   async function handleSubmit(e) {
     e.preventDefault();
@@ -19,8 +21,10 @@ export default function Signup() {
     }
     console.log("Signup data:", form);
     try {
-      const res = await register(form.username, form.password);
+      const res = await register(form.username.trim(), form.password.trim());
       console.log("res", res);
+      setErrorMsg(res.message);
+
       if (!res.success) {
         return;
       }
@@ -33,12 +37,15 @@ export default function Signup() {
   }
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+    setErrorMsg("");
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md">
-        <h2 className="text-2xl font-bold mb-6 text-center">Sign Up</h2>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4 sm:p-0">
+      <div className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-md sm:max-w-lg">
+        <h2 className="text-xl sm:text-2xl font-bold mb-6 text-center">
+          Sign Up
+        </h2>
         <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
           <input
             type="text"
@@ -68,6 +75,9 @@ export default function Signup() {
             className="w-full p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
+          <div className="text-red-500 text-center text-sm sm:text-base">
+            {errorMsg}
+          </div>
           <button
             type="submit"
             className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition"
