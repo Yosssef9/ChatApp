@@ -53,20 +53,36 @@ export const loginUser = async (req, res) => {
     if (!isMatch)
       return res.status(400).json({ message: "Invalid username or password" });
 
-    // ✅ Create JWT token
-    const token = jwt.sign(
+    // ✅ Access Token قصير (مثلاً 15 دقيقة)
+    const accessToken = jwt.sign(
       { id: user._id, username: user.username },
       process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    // ✅ Refresh Token طويل (مثلاً 7 أيام)
+    const refreshToken = jwt.sign(
+      { id: user._id, username: user.username },
+      process.env.REFRESH_TOKEN_SECRET,
       { expiresIn: "7d" }
     );
 
-    // ✅ Set cookie
-    res.cookie("token", token, {
+    // ✅ خزنه في الـ DB
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    // ✅ ابعته للعميل في cookies
+    res.cookie("accessToken", accessToken, {
       httpOnly: true,
-      // secure: process.env.NODE_ENV === "production",
       secure: true,
       sameSite: "none",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 15 * 60 * 1000, // 15 دقيقة
+    });
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 أيام
     });
 
     res.status(200).json({
@@ -86,12 +102,7 @@ export const loginUser = async (req, res) => {
 // -------------------- Get current user --------------------
 export const getMe = async (req, res) => {
   try {
-    const token = req.cookies.token;
-    if (!token) return res.status(401).json({ message: "Not authenticated" });
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    const user = await User.findById(decoded.id);
+    const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     res.status(200).json({
@@ -107,14 +118,68 @@ export const getMe = async (req, res) => {
   }
 };
 
-// -------------------- Logout --------------------
-export const logoutUser = (req, res) => {
+// -------------------- refreshAccessToken --------------------
+
+export const refreshAccessToken = async (req, res) => {
   try {
-    res.clearCookie("token", {
+    const token = req.cookies.refreshToken;
+    if (!token) return res.status(401).json({ message: "No refresh token" });
+
+    // ✅ تحقق من الـ token في DB
+    const user = await User.findOne({ refreshToken: token });
+    if (!user)
+      return res.status(403).json({ message: "Invalid refresh token" });
+
+    // ✅ أنشئ Access Token جديد
+    const newAccessToken = jwt.sign(
+      { id: user._id, username: user.username },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    // ✅ Optional: rotate refresh token (أمان أعلى)
+    const newRefreshToken = jwt.sign(
+      { id: user._id, username: user.username },
+      process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: "7d" }
+    );
+    user.refreshToken = newRefreshToken;
+    await user.save();
+
+    // ✅ إرسال tokens جديدة
+    res.cookie("accessToken", newAccessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: true,
+      sameSite: "none",
+      maxAge: 15 * 60 * 1000,
     });
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.json({ message: "Access token refreshed" });
+  } catch (err) {
+    console.error("Refresh token error:", err);
+    res.status(403).json({ message: "Invalid refresh token" });
+  }
+};
+
+// -------------------- Logout --------------------
+export const logoutUser = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+
+    // ✅ إزالة refresh token من DB
+    if (refreshToken) {
+      await User.findOneAndUpdate({ refreshToken }, { refreshToken: null });
+    }
+
+    // ✅ حذف الـ cookies
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
     res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
     console.error("❌ Logout error:", error);

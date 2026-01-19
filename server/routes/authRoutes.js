@@ -4,10 +4,12 @@ import {
   loginUser,
   getMe,
   logoutUser,
+  refreshAccessToken,
 } from "../controllers/authControllers.js";
 import { validate } from "../middlewares/validate.js";
 import rateLimiter from "../middlewares/rateLimiter.js";
 import { body } from "express-validator";
+import { authMiddleware } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
@@ -39,7 +41,8 @@ router.post(
   loginUser
 );
 
-router.get("/me", getMe);
+router.get("/me", authMiddleware, getMe);
 router.post("/logout", logoutUser);
+router.get("/refreshAccessToken", refreshAccessToken);
 
 export default router;
