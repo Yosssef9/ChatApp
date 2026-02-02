@@ -23,6 +23,7 @@ export default function ChatList({
         layout
       >
         <ChatItem
+          key={conversation.user.id}
           conversation={conversation}
           onClick={getUserMessages}
           isActive={conversation.user.id === activeChatUser?.user?.id}

@@ -7,6 +7,12 @@ export const chatSocket = (io, socket) => {
     "join-conversation",
     async ({ conversationId, userId, otherUserId }) => {
       console.log("userId in join-conversation", userId);
+      console.log("JOINED rooms:", Array.from(socket.rooms));
+      console.log(
+        "JOINED conversationId typeof:",
+        typeof conversationId,
+        conversationId,
+      );
       socket.emit("userIsOnTheChat", otherUserId);
       socket.userId = userId;
       socket.join(conversationId);
@@ -27,7 +33,7 @@ export const chatSocket = (io, socket) => {
           to: userId,
           isSeen: false,
         },
-        { $set: { isSeen: true } }
+        { $set: { isSeen: true } },
       );
 
       //  لو فعلاً في رسائل اتغيرت
@@ -42,7 +48,7 @@ export const chatSocket = (io, socket) => {
           });
         }
       }
-    }
+    },
   );
   socket.on("leave-conversation", ({ conversationId, otherUserId, userId }) => {
     socket.leave(conversationId);
@@ -58,10 +64,11 @@ export const chatSocket = (io, socket) => {
     }
   });
 
-  socket.on("send-message", async ({ msg, conversationId }) => {
+  socket.on("send-message", async ({ msg, conversationId, repliedMessage }) => {
     console.log("send-message ttttttttttttttttttt");
     console.log("send-message conversationId", conversationId);
     console.log("send-message msg", msg);
+    console.log("send-message repliedMessage", repliedMessage);
 
     // 1- نشوف هل المستخدم التاني جوه الشات؟
     const socketsInRoom = await io.in(conversationId).fetchSockets();
@@ -69,15 +76,20 @@ export const chatSocket = (io, socket) => {
       console.log("s.userId", s.userId);
       return s.userId === msg.to;
     });
+
     const message = await Message.create({
       from: msg.from,
       to: msg.to,
       text: msg.text,
       isSeen: isReceiverInChat,
+      repliedMessage: repliedMessage?.id || null,
     });
-    let convo = await Conversation.findOne({
-      members: { $all: [msg.from, msg.to] },
-    });
+    const populatedMessage = await Message.findById(message._id).populate(
+      "repliedMessage",
+    );
+    console.log(populatedMessage?.repliedMessage);
+    let convo = await Conversation.findById(conversationId);
+
     if (!convo) {
       convo = await Conversation.create({
         members: [msg.from, msg.to],
@@ -120,41 +132,45 @@ export const chatSocket = (io, socket) => {
     const receiverSocket = onlineUsers.get(msg.to);
 
     if (receiverSocket) {
-      io.to(receiverSocket).emit("receive-message", message);
+      io.to(receiverSocket).emit("receive-message", populatedMessage);
       io.to(receiverSocket).emit(
         "conversation-updated",
-        formattedConvoForReceiver
+        formattedConvoForReceiver,
       );
     }
     const senderSocket = onlineUsers.get(msg.from);
     if (senderSocket) {
       io.to(senderSocket).emit("conversation-updated", formattedConvoForSender);
     }
-    socket.emit("receive-message", message);
+    socket.emit("receive-message", populatedMessage);
   });
 
   socket.on(
     "send-reaction",
-    async ({ messageId, type, userId, conversationId, reciverId }) => {
+    async ({ messageId, type, userId, conversationId }) => {
       console.log("send-reaction");
       console.log("messageId", messageId);
       console.log("type", type);
       console.log("userId", userId);
       console.log("send-reaction conversationId", conversationId);
-      console.log("send-reaction reciverId", reciverId);
+      const sockets = await io.in(conversationId).fetchSockets();
+      console.log(
+        "SOCKETS IN ROOM:",
+        sockets.map((s) => s.userId),
+      );
 
       const message = await Message.findById(messageId);
       if (!message) return;
 
       // Add reaction or update if user already reacted
       const existing = message.reactions.find(
-        (r) => r.user.toString() === userId
+        (r) => r.user.toString() === userId,
       );
 
       if (existing) {
         if (existing.type === type) {
           message.reactions = message.reactions.filter(
-            (r) => r.user.toString() !== userId
+            (r) => r.user.toString() !== userId,
           );
         } else {
           existing.type = type; // update reaction
@@ -164,24 +180,42 @@ export const chatSocket = (io, socket) => {
       }
 
       await message.save();
-      // Emit to all participants of the chat
-      socket.emit("reaction-updated", message); // للـ sender
-      io.to(socket.id).emit("reaction-updated", message);
-      const onlineUsers = getOnlineUsers();
-      for (const [userId, socketId] of onlineUsers.entries()) {
-        console.log("User:", userId, "Socket:", socketId);
-      }
 
-      const receiverSocketId = onlineUsers.get(reciverId);
-      console.log("send-reaction receiverSocketId", receiverSocketId);
-      console.log("send-reaction message", message);
-      console.log(
-        "send-reaction message.to.toString()::",
-        message.to.toString()
-      );
-      if (receiverSocketId) {
-        io.to(receiverSocketId).emit("reaction-updated", message); // للـ receiver
-      }
-    }
+      io.to(conversationId).emit("reaction-updated", message);
+    },
   );
+  socket.on("delete-msg", async ({ messageId, conversationId, type }) => {
+    console.log("delete-msg messageId", messageId);
+    console.log("delete-msg type", type);
+    const message = await Message.findById(messageId);
+    if (!message) return;
+
+    // delete for everyone
+    if (type === "everyone") {
+      if (message.from.toString() !== socket.userId) return;
+
+      message.isDeleted = true;
+      message.text = null;
+      await message.save();
+      //   let convo = await Conversation.findById(conversationId).populate("lastMessage");
+      //  if(convo.lastMessage._id === messageId){
+
+      //  }
+      io.to(conversationId).emit("message-deleted", {
+        message,
+        type: "everyone",
+      });
+    }
+
+    // delete for me
+    if (type === "me") {
+      message.hiddenFor.push(socket.userId);
+      await message.save();
+
+      socket.emit("message-deleted", {
+        message,
+        type: "me",
+      });
+    }
+  });
 };

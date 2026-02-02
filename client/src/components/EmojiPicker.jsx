@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { REACTION_TO_EMOJI } from "../Constants/reactions.js";
 
 const EmojiPicker = forwardRef(
-  ({ emojis, onSelect, isMine, isFirstMessage, myReaction }, ref) => {
+  ({ emojis, onSelect, isMine, isFirstOrSecondMessage, myReaction }, ref) => {
     const selectedEmoji = myReaction
       ? REACTION_TO_EMOJI[myReaction.type]
       : null;
@@ -15,7 +15,7 @@ const EmojiPicker = forwardRef(
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.8 }}
         className={`absolute z-40 flex gap-2 p-2 bg-white shadow rounded-lg
-          ${isFirstMessage ? "top-full mt-2" : "bottom-full mb-2"}
+          ${isFirstOrSecondMessage ? "top-full mt-2" : "bottom-full mb-2"}
           ${isMine ? "right-0" : "left-0"}
         `}
       >
@@ -39,7 +39,7 @@ const EmojiPicker = forwardRef(
         })}
       </motion.div>
     );
-  }
+  },
 );
 
 export default EmojiPicker;

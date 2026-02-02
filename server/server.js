@@ -23,7 +23,7 @@ app.use(
   cors({
     origin: allowedOrigins, // your frontend URL
     credentials: true, // allow cookies
-  })
+  }),
 );
 app.use(cookieParser());
 app.use("/api/auth", authRoutes);
@@ -39,6 +39,6 @@ const io = new Server(httpServer, {
 });
 
 httpServer.listen(3000, "0.0.0.0", () =>
-  console.log("Server running on port 3000")
+  console.log("Server running on port 3000"),
 );
 initSockets(io);

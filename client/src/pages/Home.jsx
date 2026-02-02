@@ -11,193 +11,47 @@ import ChatItem from "../components/ChatItem";
 import MessageList from "../components/MessageList";
 import ChatList from "../components/ChatList";
 import { Menu } from "lucide-react";
+import useUserSearch from "../hooks/useUserSearch";
+import useChatSocket from "../hooks/useChatSocket";
 export default function Home() {
   const { user } = useAuth();
   console.log("user", user);
-  const socketUrl = "http://localhost:3000";
-  // const socketUrl = "https://bwsxd8pq-3000.uks1.devtunnels.ms";
-  const socketRef = useRef(null);
-  const [typingUsers, setTypingUsers] = useState({});
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isLoadingSearching, setIsLoadingSearching] = useState(false);
-  const [isLoadingRecentChats, setIsLoadingRecentChats] = useState(false);
-  const [onlineUsers, setOnlineUsers] = useState(new Set());
-  const [usersInChat, setUsersInChat] = useState({});
-  console.log("usersInChat", usersInChat);
-  console.log("typingUsers", typingUsers);
+  const socketUrl = import.meta.env.VITE_SOCKET_URL;
   const [searchInput, setSearchInput] = useState("");
+
+  const socketRef = useRef(null);
+
+  // UI states
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeChatUser, setActiveChatUser] = useState(null);
-  const [results, setResults] = useState([]);
+
+  // chat states
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [recentChats, setRecentChats] = useState([]);
-  console.log("activeChatUser:", activeChatUser);
-  console.log("recentChats:", recentChats);
-  useEffect(() => {
-    if (!searchInput) {
-      setResults([]);
-      setIsLoadingSearching(false);
-      return;
-    }
+  const [isLoadingRecentChats, setIsLoadingRecentChats] = useState(false);
+  const [repliedMessage, setRepliedMessage] = useState(null);
 
-    setIsLoadingSearching(true); // 🔹 set loading immediately
+  // // ✅ search hook
+  const { results, isLoadingSearching } = useUserSearch(searchInput, 300);
 
-    const fetchResults = async () => {
-      try {
-        const res = await api.get(`/users/searchUsers?q=${searchInput}`, {
-          withCredentials: true,
-        });
-        setResults(res.data);
-      } catch (err) {
-        console.error("Search error:", err);
-      } finally {
-        setIsLoadingSearching(false);
-      }
-    };
-
-    const timeoutId = setTimeout(fetchResults, 300); // debounce API call
-
-    return () => clearTimeout(timeoutId);
-  }, [searchInput]);
-
-  useEffect(() => {
-    if (!user?.id) return;
-
-    socketRef.current = io(socketUrl, {
-      withCredentials: true,
-      transports: ["websocket", "polling"],
-    });
-
-    socketRef.current.emit("user-online", user.id);
-
-    return () => {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    };
-  }, [user?.id]);
-  useEffect(() => {
-    if (!socketRef.current) return;
-
-    const handleReceiveMessage = (msg) => {
-      // هل الرسالة تخص الشات المفتوح؟
-      const isCurrentChat =
-        activeChatUser &&
-        (msg.from === activeChatUser.user.id ||
-          msg.to === activeChatUser.user.id);
-
-      if (isCurrentChat) {
-        // أضف الرسالة للشات المفتوح فقط
-        setMessages((prev) => [...prev, msg]);
-      }
-      // غير كده → ما تعرضهاش هنا
-    };
-    const socket = socketRef.current;
-    socket.on("receive-message", handleReceiveMessage);
-
-    return () => {
-      socket.off("receive-message", handleReceiveMessage);
-    };
-  }, [activeChatUser]);
-
-  const sendMessage = () => {
-    if (!text.trim() || !socketRef.current || !activeChatUser) return;
-    console.log("sendMessage activeChatUser :", activeChatUser);
-    const msg = {
-      from: user.id,
-      to: activeChatUser.user.id,
-      text,
-    };
-    console.log(msg);
-
-    socketRef.current.emit("send-message", {
-      msg,
-      conversationId: activeChatUser.id,
-    });
-    setText("");
-  };
-
-  const getUserMessages = async (clickedConversation) => {
-    clickedConversation.unSeenMsgsNumber = 0;
-    console.log("clickedConversation", clickedConversation);
-    setActiveChatUser(clickedConversation);
-    if (window.innerWidth < 768) {
-      setIsSidebarOpen(false);
-    }
-    socketRef.current.emit("join-conversation", {
-      conversationId: clickedConversation.id,
-      userId: user.id,
-      otherUserId: clickedConversation.user.id,
-    });
-    try {
-      const res = await api.get(
-        `/messages/getMessages?from=${user.id}&to=${clickedConversation.user.id}`,
-        {
-          withCredentials: true,
-        }
-      );
-      console.log("getUSerMessages res", res);
-      setMessages(res.data);
-    } catch (err) {
-      console.error("Search error:", err);
-    }
-  };
-  useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
-
-    // Cleanup function will leave the previous conversation
-    return () => {
-      if (activeChatUser?.id) {
-        socket.emit("leave-conversation", {
-          conversationId: activeChatUser.id,
-          userId: user.id,
-          otherUserId: activeChatUser.user.id,
-        });
-        console.log("Left conversation", activeChatUser.id);
-      }
-    };
-  }, [activeChatUser]);
-  //check if user in the chat
-  useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
-
-    socket.on("user-in-chat", ({ conversationId }) => {
-      setUsersInChat((prev) => ({
-        ...prev,
-        [conversationId]: true,
-      }));
-    });
-
-    socket.on("user-left-chat", ({ conversationId }) => {
-      setUsersInChat((prev) => ({
-        ...prev,
-        [conversationId]: false,
-      }));
-    });
-
-    return () => {
-      socket.off("user-in-chat");
-      socket.off("user-left-chat");
-    };
-  }, []);
-
-  // online users
-  useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
-
-    const handleOnlineUsers = (usersArray) => {
-      setOnlineUsers(new Set(usersArray)); // store IDs as a Set for easy lookup
-    };
-
-    socket.on("online-users", handleOnlineUsers);
-
-    return () => {
-      socket.off("online-users", handleOnlineUsers);
-    };
-  }, []);
-
+  // // ✅ socket hook (كل السوكيت هنا)
+  const {
+    onlineUsers,
+    typingUsers,
+    usersInChat,
+    joinConversation,
+    leaveConversation,
+    sendMessage: socketSendMessage,
+  } = useChatSocket({
+    userId: user?.id,
+    socketUrl,
+    activeChatUser,
+    setMessages,
+    setRecentChats,
+    socketRef,
+  });
+  // ✅ fetch recent chats (لسه API مش سوكيت)
   useEffect(() => {
     const fetchRecentChats = async () => {
       try {
@@ -206,82 +60,74 @@ export default function Home() {
           withCredentials: true,
         });
         setRecentChats(res.data);
-        console.log("setRecentChats res", res);
       } catch (err) {
         console.error("Failed to fetch recent chats:", err);
       } finally {
         setIsLoadingRecentChats(false);
       }
     };
+
     fetchRecentChats();
   }, []);
 
-  useEffect(() => {
-    const socket = socketRef.current;
+  // ✅ send message (صار صغير)
+  const sendMessage = () => {
+    if (!activeChatUser) return;
 
-    if (!socket) return;
-
-    socket.on("conversation-updated", (updatedConvo) => {
-      console.log("unSeenMsgsNumber", updatedConvo.unSeenMsgsNumber);
-      setRecentChats((prev) => {
-        const exists = prev.find((c) => c.id === updatedConvo.id);
-        if (exists) {
-          // حدث الشات الموجود
-          return prev.map((c) => (c.id === updatedConvo.id ? updatedConvo : c));
-        } else {
-          // أضف الشات الجديد إذا مش موجود
-          return [updatedConvo, ...prev];
-        }
-      });
+    socketSendMessage({
+      toUserId: activeChatUser.user.id,
+      conversationId: activeChatUser.id,
+      text,
+      repliedMessage,
     });
 
-    return () => {
-      socket.off("conversation-updated");
-    };
-  }, []);
+    setText("");
+    setRepliedMessage(null);
+  };
 
-  useEffect(() => {
-    const socket = socketRef.current;
+  // ✅ open chat + fetch messages
+  const getUserMessages = async (clickedConversation) => {
+    // ✅ صح: صفّر unseen في recentChats
+    setRecentChats((prev) =>
+      prev.map((c) =>
+        c.id === clickedConversation.id ? { ...c, unSeenMsgsNumber: 0 } : c,
+      ),
+    );
 
-    if (!socket) return;
+    setRepliedMessage(null);
+    setActiveChatUser(clickedConversation);
 
-    socket.on("messages-seen", ({ conversationId }) => {
-      if (conversationId !== activeChatUser?.id) return;
+    if (window.innerWidth < 768) setIsSidebarOpen(false);
 
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.from === user.id ? { ...msg, isSeen: true } : msg
-        )
+    // ✅ join conversation via hook
+    joinConversation({
+      conversationId: clickedConversation.id,
+      otherUserId: clickedConversation.user.id,
+    });
+
+    // ✅ fetch messages via API
+    try {
+      const res = await api.get(
+        `/messages/getMessages?from=${user.id}&to=${clickedConversation.user.id}`,
+        { withCredentials: true },
       );
-    });
+      setMessages(res.data);
+    } catch (err) {
+      console.error("getMessages error:", err);
+    }
+  };
 
-    return () => socket.off("messages-seen");
-  }, [user.id, activeChatUser]);
+  // ✅ leave conversation لما activeChatUser يتغير أو الصفحة تتقفل
   useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
-
-    const handleTyping = ({ conversationId }) => {
-      console.log("handleTyping conversationId", conversationId);
-      setTypingUsers((prev) => ({ ...prev, [conversationId]: true }));
-      console.log("handleTyping typingUsers", typingUsers);
-    };
-
-    const handleStopTyping = ({ conversationId }) => {
-      console.log("handleStopTyping conversationId", conversationId);
-
-      setTypingUsers((prev) => ({ ...prev, [conversationId]: false }));
-      console.log("handleStopTyping typingUsers", typingUsers);
-    };
-
-    socket.on("user-typing", handleTyping);
-    socket.on("user-stop-typing", handleStopTyping);
-
     return () => {
-      socket.off("user-typing", handleTyping);
-      socket.off("user-stop-typing", handleStopTyping);
+      if (activeChatUser?.id) {
+        leaveConversation({
+          conversationId: activeChatUser.id,
+          otherUserId: activeChatUser.user.id,
+        });
+      }
     };
-  }, []);
+  }, [activeChatUser, leaveConversation]);
 
   const sideBarHandlers = useSwipeable({
     onSwipedRight: () => setIsSidebarOpen(true),
@@ -369,6 +215,7 @@ export default function Home() {
              placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30
              transition-shadow duration-200 hover:shadow-sm"
               placeholder="Search..."
+              value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
           </div>
@@ -459,9 +306,13 @@ export default function Home() {
             currentUserId={user.id}
             activeChatUser={activeChatUser}
             isTyping={typingUsers[activeChatUser.id] || false}
+            repliedMessage={repliedMessage}
+            setRepliedMessage={setRepliedMessage}
           />
 
           <MessageInput
+            repliedMessage={repliedMessage}
+            setRepliedMessage={setRepliedMessage}
             text={text}
             onChange={(value) => setText(value)}
             onSend={sendMessage}

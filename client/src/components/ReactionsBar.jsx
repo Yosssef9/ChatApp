@@ -4,7 +4,6 @@ import { REACTION_TO_EMOJI } from "../Constants/reactions.js";
 export default function ReactionsBar({ reactions = [], isMine }) {
   if (!reactions.length) return null;
 
-  // نفس groupReactions اللي كنت عامله
   const groupReactions = () => {
     const map = {};
 
