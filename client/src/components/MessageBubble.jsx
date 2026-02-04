@@ -18,6 +18,7 @@ export default function MessageBubble({
   onReact,
   onDeleteMsg,
   setRepliedMessage,
+  scrollToMessage,
 }) {
   // console.log("MessageBubble msg", msg);
   const pickerRef = useRef(null);
@@ -94,13 +95,13 @@ export default function MessageBubble({
                 className={`mb-2 p-2 rounded-md cursor-pointer flex flex-col gap-1 text-xs
       ${
         isMine
-          ? "bg-blue-100/70 border-l-4 border-blue-500"
+          ? "bg-blue-100/70 border-r-4 border-blue-600"
           : "bg-gray-100 border-l-4 border-gray-400"
       }
       hover:opacity-90 transition`}
-                onClick={() =>
-                  console.log("Go to replied message", msg.repliedMessage.id)
-                }
+                onClick={() => {
+                  if (scrollToMessage) scrollToMessage(msg.repliedMessage.id);
+                }}
               >
                 {/* Sender */}
                 <span
@@ -122,7 +123,7 @@ export default function MessageBubble({
             {isHiddenOrDeleted ? (
               <p className="italic text-gray-400">This message was deleted</p>
             ) : (
-              <p>{msg.text}</p>
+              <p className="break-words max-w-[220px]">{msg.text}</p>
             )}
             {/* Arrow */}
             {!isHiddenOrDeleted && (

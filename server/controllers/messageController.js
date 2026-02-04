@@ -8,7 +8,13 @@ export const getMessages = async (req, res) => {
         { from, to },
         { from: to, to: from },
       ],
-    }).sort({ createdAt: 1 });
+    })
+      .sort({ createdAt: 1 })
+      .populate([
+        {
+          path: "repliedMessage",
+        },
+      ]);
     res.json(messages);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch messages" });
