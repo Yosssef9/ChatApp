@@ -1,13 +1,19 @@
 import { Menu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Ellipsis } from "lucide-react";
+import { useChatStore } from "@/store/chatStore";
 
 export default function ChatHeader({
   setIsSidebarOpen,
-  activeChatUser,
-  onlineUsers,
-  usersInChat,
+  // activeChatUser,
+  // onlineUsers,
+  // usersInChat,
 }) {
+  const onlineUsers = useChatStore((s) => s.onlineUsers);
+  const usersInChat = useChatStore((s) => s.usersInChat);
+  const activeChatUser = useChatStore((s) => s.activeChatUser);
+  const isOnline = !!onlineUsers[activeChatUser.user.id];
+
   return (
     <>
       <div className="flex justify-between items-center p-4 bg-gradient-to-r from-blue-400 to-blue-600 rounded-t-2xl text-white">
@@ -40,9 +46,7 @@ export default function ChatHeader({
             />
             <span
               className={`absolute bottom-0 right-0 w-3 h-3 ${
-                onlineUsers.has(activeChatUser.user.id)
-                  ? "bg-green-500"
-                  : "bg-gray-400"
+                isOnline ? "bg-green-500" : "bg-gray-400"
               }  border-2 border-border-white rounded-full`}
             />
           </div>

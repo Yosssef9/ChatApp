@@ -1,18 +1,26 @@
 import ChatItem from "./ChatItem";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { motion, AnimatePresence } from "framer-motion";
+import { useChatStore } from "@/store/chatStore";
 
 export default function ChatList({
-  recentChats,
+  // recentChats,
   results,
   searchInput,
-  activeChatUser,
-  getUserMessages,
-  typingUsers,
+  // activeChatUser,
+  // getUserMessages,
+  openConversation,
   isLoadingSearching,
-  isLoadingRecentChats,
-  onlineUsersMap,
+  // isLoadingRecentChats,
+  // typingUsers,
+  // onlineUsersMap,
 }) {
+  const onlineUsers = useChatStore((s) => s.onlineUsers);
+  const typingUsers = useChatStore((s) => s.typingUsers);
+  const recentChats = useChatStore((s) => s.recentChats);
+  const activeChatUser = useChatStore((s) => s.activeChatUser);
+  const isLoadingRecentChats = useChatStore((s) => s.isLoadingRecentChats);
+
   const renderChats = (chats) =>
     chats.map((conversation) => (
       <motion.div
@@ -25,10 +33,10 @@ export default function ChatList({
         <ChatItem
           key={conversation.user.id}
           conversation={conversation}
-          onClick={getUserMessages}
+          onClick={openConversation}
           isActive={conversation.user.id === activeChatUser?.user?.id}
           isTyping={typingUsers[conversation.id] || false}
-          isOnline={onlineUsersMap.has(conversation.user.id)}
+          isOnline={!!onlineUsers[conversation.user.id]}
         />
       </motion.div>
     ));

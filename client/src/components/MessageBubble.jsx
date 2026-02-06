@@ -7,6 +7,7 @@ import ReactionsBar from "./ReactionsBar";
 import { useClickOutside } from "../hooks/useClickOutside";
 import { useAuth } from "../Context/AuthContext";
 import { motion } from "framer-motion";
+import { useChatStore } from "@/store/chatStore";
 
 export default function MessageBubble({
   msg,
@@ -17,12 +18,13 @@ export default function MessageBubble({
   emojis,
   onReact,
   onDeleteMsg,
-  setRepliedMessage,
+  // setRepliedMessage,
   scrollToMessage,
 }) {
   // console.log("MessageBubble msg", msg);
   const pickerRef = useRef(null);
   const { user } = useAuth();
+  const setRepliedMessage = useChatStore((s) => s.setRepliedMessage);
 
   useClickOutside(pickerRef, () => openPicker(null));
   const myReaction = msg.reactions.find((r) => r.user === user.id);
@@ -40,7 +42,11 @@ export default function MessageBubble({
       } relative`}
     >
       <div className="flex flex-col">
-        <div className=" flex">
+        <div
+          className="flex"
+          onMouseEnter={() => setShowArrow(true)}
+          onMouseLeave={() => setShowArrow(false)}
+        >
           {/* Emoji button (isMine) */}
           {isMine && !isHiddenOrDeleted && (
             <EmojiButton
@@ -54,8 +60,6 @@ export default function MessageBubble({
             className={`p-2 rounded-lg max-w-xs relative z-0 ${
               isMine ? "bg-blue-500 text-white" : "bg-gray-200"
             }`}
-            onMouseEnter={() => setShowArrow(true)}
-            onMouseLeave={() => setShowArrow(false)}
             onClick={() => setShowArrow(true)}
           >
             {/* Context Menu */}
@@ -129,7 +133,7 @@ export default function MessageBubble({
             {!isHiddenOrDeleted && (
               <MsgArrow
                 isMine={isMine}
-                showArrow={showArrow}
+                showArrow={showArrow || isMenuOpen}
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsMenuOpen((prev) => !prev);
@@ -204,8 +208,8 @@ const MsgArrow = ({ isMine, showArrow, onClick }) => (
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -4, scale: 0.8 }}
         transition={{ duration: 0.2, ease: "easeOut" }}
-        className={`absolute top-1 left-1 ${
-          isMine ? "text-white" : "text-gray-700"
+        className={`absolute top-1  ${
+          isMine ? "text-white left-1" : "text-gray-700 right-1"
         } cursor-pointer z-50`}
         onClick={onClick}
       >
@@ -229,7 +233,7 @@ const ContextMenu = ({ onClose, options, isMine, isFirstOrSecondMessage }) => {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.85, y: -5 }}
       transition={{ duration: 0.15 }}
-      className={`absolute ${isFirstOrSecondMessage ? "top-14" : "bottom-14"}  z-30 w-36 bg-white rounded-md shadow-lg overflow-hidden
+      className={`absolute ${isFirstOrSecondMessage ? "top-full mt-2" : "bottom-full mb-2"} z-[9999] w-36 bg-white rounded-md shadow-lg overflow-hidden
         ${isMine ? "right-16" : "left-0"}`}
     >
       {options.map((option) => {

@@ -202,7 +202,7 @@ export const chatSocket = (io, socket) => {
 
       //  }
       io.to(conversationId).emit("message-deleted", {
-        message,
+        updatedMessage: message,
         type: "everyone",
       });
     }
@@ -213,7 +213,7 @@ export const chatSocket = (io, socket) => {
       await message.save();
 
       socket.emit("message-deleted", {
-        message,
+        updatedMessage: message,
         type: "me",
       });
     }

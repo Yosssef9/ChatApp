@@ -5,13 +5,16 @@ import { LoadingProvider } from "./context/LoadingContext";
 import { AuthProvider } from "./context/AuthContext";
 import router from "./routes/router";
 import { RouterProvider } from "react-router-dom";
+import SocketProvider from "./providers/SocketProvider";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <LoadingProvider>
       <AuthProvider>
-        <RouterProvider router={router} />
+        <SocketProvider>
+          <RouterProvider router={router} />
+        </SocketProvider>
       </AuthProvider>
     </LoadingProvider>
-  </StrictMode>
+  </StrictMode>,
 );

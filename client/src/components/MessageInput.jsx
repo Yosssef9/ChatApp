@@ -1,17 +1,22 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { SendHorizontal } from "lucide-react";
-import { useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
+import { useChatStore } from "@/store/chatStore";
+import { useAuth } from "../Context/AuthContext";
 
-export default function MessageInput({
-  text,
-  onChange,
-  onSend,
-  conversationId,
-  to,
-  socketRef,
-  repliedMessage,
-  setRepliedMessage,
-}) {
+export default function MessageInput() {
+  const { user } = useAuth();
+  const [text, setText] = useState("");
+
+  const repliedMessage = useChatStore((s) => s.repliedMessage);
+  const socket = useChatStore((s) => s.socket);
+  const sendMessage = useChatStore((s) => s.sendMessage);
+
+  const setRepliedMessage = useChatStore((s) => s.setRepliedMessage);
+  const activeChatUser = useChatStore((s) => s.activeChatUser);
+  const conversationId = activeChatUser.id;
+  const to = activeChatUser.user.id;
+
   const textareaRef = useRef(null);
   const lineHeight = 24; // تقريباً ارتفاع السطر الواحد بالـ px
   const maxLines = 4; // الحد الأقصى
@@ -39,18 +44,31 @@ export default function MessageInput({
     return () => clearTimeout(typingTimeoutRef.current);
   }, []);
   const handleChange = (e) => {
-    onChange(e.target.value);
+    setText(e.target.value);
 
     // user started typing
-    socketRef.current?.emit("typing", { conversationId, to });
+    socket?.emit("typing", { conversationId, to });
 
     // reset stop-typing timer
     clearTimeout(typingTimeoutRef.current);
     typingTimeoutRef.current = setTimeout(() => {
-      socketRef.current?.emit("stop-typing", { conversationId, to });
+      socket?.emit("stop-typing", { conversationId, to });
     }, 1000);
   };
+  const handleSend = () => {
+    if (!conversationId || !to) return;
 
+    sendMessage({
+      fromUserId: user?.id,
+      toUserId: to,
+      conversationId,
+      text,
+      repliedMessage,
+    });
+
+    setText(""); // ✅ UI يمسح النص
+    setRepliedMessage(null); // ✅ UI يمسح الرد
+  };
   return (
     <div className="relative w-full p-4 bg-gray-100">
       {/* Reply box */}
@@ -90,7 +108,7 @@ export default function MessageInput({
       >
         <button
           type="button"
-          onClick={onSend}
+          onClick={handleSend}
           className="absolute right-6 top-1/2 -translate-y-1/2 text-blue-400 cursor-pointer"
         >
           <SendHorizontal size={18} />
@@ -104,7 +122,7 @@ export default function MessageInput({
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              onSend();
+              handleSend();
             }
           }}
           rows={1} // يبان كسطر واحد في البداية
