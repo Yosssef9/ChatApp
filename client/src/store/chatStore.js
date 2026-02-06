@@ -1,4 +1,5 @@
 import { create } from "zustand";
+let typingTimeout = null;
 
 export const useChatStore = create((set, get) => ({
   // 🔥 STATE
@@ -103,5 +104,18 @@ export const useChatStore = create((set, get) => ({
 
     if (!socket || !userId) return;
     socket.emit("join-conversation", { conversationId, userId, otherUserId });
+  },
+  updateTypingStatus: ({ conversationId, to }) => {
+    const socket = get().socket;
+    if (!socket || !conversationId || !to) return;
+
+    // user started typing
+    socket.emit("typing", { conversationId, to });
+
+    // reset stop-typing timer
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+      socket.emit("stop-typing", { conversationId, to });
+    }, 1000);
   },
 }));

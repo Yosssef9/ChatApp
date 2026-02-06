@@ -9,8 +9,8 @@ export default function MessageInput() {
   const [text, setText] = useState("");
 
   const repliedMessage = useChatStore((s) => s.repliedMessage);
-  const socket = useChatStore((s) => s.socket);
   const sendMessage = useChatStore((s) => s.sendMessage);
+  const updateTypingStatus = useChatStore((s) => s.updateTypingStatus);
 
   const setRepliedMessage = useChatStore((s) => s.setRepliedMessage);
   const activeChatUser = useChatStore((s) => s.activeChatUser);
@@ -39,21 +39,11 @@ export default function MessageInput() {
         scrollHeight > maxHeight ? "auto" : "hidden";
     }
   }, [text]);
-  const typingTimeoutRef = useRef(null);
-  useEffect(() => {
-    return () => clearTimeout(typingTimeoutRef.current);
-  }, []);
+
   const handleChange = (e) => {
     setText(e.target.value);
 
-    // user started typing
-    socket?.emit("typing", { conversationId, to });
-
-    // reset stop-typing timer
-    clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      socket?.emit("stop-typing", { conversationId, to });
-    }, 1000);
+    updateTypingStatus({ conversationId, to });
   };
   const handleSend = () => {
     if (!conversationId || !to) return;
