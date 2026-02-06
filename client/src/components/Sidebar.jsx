@@ -4,18 +4,25 @@ import SearchUsersInput from "./SearchUsersInput";
 import ChatList from "./ChatList";
 import UserProfile from "./UserProfile";
 import { useUIStore } from "@/store/uiStore";
+import { useChatStore } from "@/store/chatStore";
+import { useState } from "react";
+import useUserSearch from "@/hooks/useUserSearch";
+import useOpenConversation from "@/hooks/useOpenConversation";
+import { useAuth } from "../Context/AuthContext";
 
-export default function Sidebar({
-  user,
-  results,
-  searchInput,
-  setSearchInput,
-  //   setIsSidebarOpen,
-  //   getUserMessages,
-  // isSidebarOpen,
-  openConversation,
-  isLoadingSearching,
-}) {
+export default function Sidebar() {
+  const { user } = useAuth();
+
+  const [searchInput, setSearchInput] = useState("");
+
+  const joinConversation = useChatStore((s) => s.joinConversation);
+
+  const { results, isLoadingSearching } = useUserSearch(searchInput, 300);
+
+  const { openConversation } = useOpenConversation({
+    userId: user.id,
+    joinConversation,
+  });
   const isSidebarOpen = useUIStore((s) => s.isSidebarOpen);
   const setIsSidebarOpen = useUIStore((s) => s.setIsSidebarOpen);
 
@@ -92,16 +99,10 @@ export default function Sidebar({
           {/* Chat List */}
 
           <ChatList
-            // recentChats={recentChats}
-            // activeChatUser={activeChatUser}
             results={results}
             searchInput={searchInput}
-            // getUserMessages={getUserMessages}
             openConversation={openConversation}
             isLoadingSearching={isLoadingSearching}
-            // isLoadingRecentChats={isLoadingRecentChats}
-            // typingUsers={typingUsers}
-            // onlineUsersMap={onlineUsers}
           />
         </div>
       </div>
