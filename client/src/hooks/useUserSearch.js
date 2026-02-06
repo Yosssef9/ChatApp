@@ -26,6 +26,7 @@ export default function useUserSearch(searchInput, debounceMs = 300) {
         const res = await api.get(`/users/searchUsers?q=${searchInput}`, {
           withCredentials: true,
         });
+        console.log("fetchResults res", res);
         if (!cancelled) setResults(res.data);
       } catch (err) {
         console.error("Search error:", err);

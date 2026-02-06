@@ -22,24 +22,26 @@ export default function ChatList({
   const isLoadingRecentChats = useChatStore((s) => s.isLoadingRecentChats);
 
   const renderChats = (chats) =>
-    chats.map((conversation) => (
-      <motion.div
-        key={conversation.user.id}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -10 }}
-        layout
-      >
-        <ChatItem
+    chats.map((conversation) => {
+      console.log("renderChats conversation", conversation);
+      return (
+        <motion.div
           key={conversation.user.id}
-          conversation={conversation}
-          onClick={openConversation}
-          isActive={conversation.user.id === activeChatUser?.user?.id}
-          isTyping={typingUsers[conversation.id] || false}
-          isOnline={!!onlineUsers[conversation.user.id]}
-        />
-      </motion.div>
-    ));
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          layout
+        >
+          <ChatItem
+            conversation={conversation}
+            onClick={() => openConversation(conversation)}
+            isActive={conversation.user.id === activeChatUser?.user?.id}
+            isTyping={typingUsers[conversation.id] || false}
+            isOnline={!!onlineUsers[conversation.user.id]}
+          />
+        </motion.div>
+      );
+    });
 
   const isLoading =
     isLoadingSearching || (searchInput.length === 0 && isLoadingRecentChats);

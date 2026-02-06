@@ -12,6 +12,7 @@ export default function useOpenConversation({ userId, joinConversation }) {
 
   const openConversation = useCallback(
     async (clickedConversation) => {
+      console.log("openConversation clickedConversation", clickedConversation);
       // 1) UI + store updates
       resetUnseen(clickedConversation.id);
       setRepliedMessage(null);

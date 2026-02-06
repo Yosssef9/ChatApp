@@ -89,7 +89,7 @@ export const useChatStore = create((set, get) => ({
     const setRepliedMessage = get().setRepliedMessage;
     const activeChatUser = get().activeChatUser;
     if (!activeChatUser) return;
-    if (!socket || !fromUserId || !toUserId || !conversationId) return;
+    if (!socket || !fromUserId || !toUserId) return;
     if (!text?.trim()) return;
 
     socket.emit("send-message", {

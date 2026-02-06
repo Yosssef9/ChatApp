@@ -46,7 +46,9 @@ export default function MessageInput() {
     updateTypingStatus({ conversationId, to });
   };
   const handleSend = () => {
-    if (!conversationId || !to) return;
+    console.log("handleSend conversationId", conversationId);
+    console.log("handleSend to", to);
+    if (!to) return;
 
     sendMessage({
       fromUserId: user?.id,
