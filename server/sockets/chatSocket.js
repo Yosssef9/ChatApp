@@ -64,86 +64,124 @@ export const chatSocket = (io, socket) => {
     }
   });
 
-  socket.on("send-message", async ({ msg, conversationId, repliedMessage }) => {
-    console.log("send-message ttttttttttttttttttt");
-    console.log("send-message conversationId", conversationId);
-    console.log("send-message msg", msg);
-    console.log("send-message repliedMessage", repliedMessage);
+  socket.on(
+    "send-message",
+    async ({ msg, conversationId, repliedMessage, meta }) => {
+      console.log("send-message conversationId", conversationId);
+      console.log("send-message msg", msg);
+      console.log("send-message repliedMessage", repliedMessage);
+      console.log("send-message meta", meta);
 
-    // 1- نشوف هل المستخدم التاني جوه الشات؟
-    const socketsInRoom = await io.in(conversationId).fetchSockets();
-    const isReceiverInChat = socketsInRoom.some((s) => {
-      console.log("s.userId", s.userId);
-      return s.userId === msg.to;
-    });
+      const fromUserId = socket.userId; // ✅ safer
+      const toUserId = msg.to;
 
-    const message = await Message.create({
-      from: msg.from,
-      to: msg.to,
-      text: msg.text,
-      isSeen: isReceiverInChat,
-      repliedMessage: repliedMessage?.id || null,
-    });
-    const populatedMessage = await Message.findById(message._id).populate(
-      "repliedMessage",
-    );
-    console.log(populatedMessage?.repliedMessage);
-    let convo = await Conversation.findById(conversationId);
+      // 1- هل المستقبل جوه الشات؟
+      const socketsInRoom = await io.in(conversationId).fetchSockets();
+      const isReceiverInChat = socketsInRoom.some((s) => s.userId === toUserId);
 
-    if (!convo) {
-      convo = await Conversation.create({
-        members: [msg.from, msg.to],
-        lastMessage: message._id,
+      // 2- Decide text + forward fields
+      let textToSend = msg.text;
+      let forwardFields = {};
+
+      if (meta?.type === "forward") {
+        const original = await Message.findById(meta.sourceMessageId);
+        if (!original || original.isDeleted) return;
+
+        const forwardedText = original.text || "";
+        textToSend = forwardedText;
+
+        forwardFields = {
+          forwardedFrom: original.from,
+          forwardedMessage: original._id,
+          forwardedText: forwardedText,
+        };
+      }
+
+      // 3- Create message
+      const message = await Message.create({
+        from: fromUserId,
+        to: toUserId,
+        text: textToSend,
+        isSeen: isReceiverInChat,
+        repliedMessage: repliedMessage?.id || null,
+        ...forwardFields,
       });
-    } else {
-      convo.lastMessage = message._id;
-      await convo.save();
-    }
 
-    convo = await Conversation.findById(convo._id)
-      .populate("members", "username")
-      .populate("lastMessage");
-    // 4- تحويلها لشكل العميل زي الـ controller
-    const receiverUser = convo.members.find((m) => m._id.toString() === msg.to);
-    const senderUser = convo.members.find((m) => m._id.toString() === msg.from);
-    const unSeenMsgsNumber = await Message.countDocuments({
-      from: msg.from,
-      to: msg.to,
-      isSeen: false,
-    });
-    const formattedConvoForReceiver = {
-      id: convo._id,
-      user: {
-        id: senderUser._id,
-        username: senderUser.username,
-      },
-      lastMessage: convo.lastMessage?.text || "",
-      updatedAt: convo.updatedAt,
-      unSeenMsgsNumber,
-    };
+      const populatedMessage = await Message.findById(message._id)
+        .populate("repliedMessage")
+        .populate("forwardedFrom", "username");
 
-    const formattedConvoForSender = { ...formattedConvoForReceiver };
-    formattedConvoForSender.user = {
-      id: receiverUser._id,
-      username: receiverUser.username,
-    };
-    formattedConvoForSender.unSeenMsgsNumber = 0;
-    const onlineUsers = getOnlineUsers();
-    const receiverSocket = onlineUsers.get(msg.to);
+      let convo = await Conversation.findById(conversationId);
 
-    if (receiverSocket) {
-      io.to(receiverSocket).emit("receive-message", populatedMessage);
-      io.to(receiverSocket).emit(
-        "conversation-updated",
-        formattedConvoForReceiver,
+      if (!convo) {
+        convo = await Conversation.create({
+          members: [fromUserId, toUserId],
+          lastMessage: message._id,
+        });
+      } else {
+        convo.lastMessage = message._id;
+        await convo.save();
+      }
+
+      convo = await Conversation.findById(convo._id)
+        .populate("members", "username")
+        .populate("lastMessage");
+
+      const receiverUser = convo.members.find(
+        (m) => m._id.toString() === toUserId,
       );
-    }
-    const senderSocket = onlineUsers.get(msg.from);
-    if (senderSocket) {
-      io.to(senderSocket).emit("conversation-updated", formattedConvoForSender);
-    }
-    socket.emit("receive-message", populatedMessage);
-  });
+      const senderUser = convo.members.find(
+        (m) => m._id.toString() === fromUserId,
+      );
+
+      const unSeenMsgsNumber = await Message.countDocuments({
+        from: fromUserId,
+        to: toUserId,
+        isSeen: false,
+      });
+
+      const formattedConvoForReceiver = {
+        id: convo._id,
+        user: {
+          id: senderUser._id,
+          username: senderUser.username,
+        },
+        lastMessage: convo.lastMessage?.text || "",
+        updatedAt: convo.updatedAt,
+        unSeenMsgsNumber,
+      };
+
+      const formattedConvoForSender = {
+        ...formattedConvoForReceiver,
+        user: {
+          id: receiverUser._id,
+          username: receiverUser.username,
+        },
+        unSeenMsgsNumber: 0,
+      };
+
+      const onlineUsers = getOnlineUsers();
+      const receiverSocket = onlineUsers.get(toUserId);
+
+      if (receiverSocket) {
+        io.to(receiverSocket).emit("receive-message", populatedMessage);
+        io.to(receiverSocket).emit(
+          "conversation-updated",
+          formattedConvoForReceiver,
+        );
+      }
+
+      const senderSocket = onlineUsers.get(fromUserId);
+      if (senderSocket) {
+        io.to(senderSocket).emit(
+          "conversation-updated",
+          formattedConvoForSender,
+        );
+      }
+
+      socket.emit("receive-message", populatedMessage);
+    },
+  );
 
   socket.on(
     "send-reaction",

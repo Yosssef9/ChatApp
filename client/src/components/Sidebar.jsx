@@ -101,7 +101,7 @@ export default function Sidebar() {
           <ChatList
             results={results}
             searchInput={searchInput}
-            openConversation={openConversation}
+            onClick={openConversation}
             isLoadingSearching={isLoadingSearching}
           />
         </div>

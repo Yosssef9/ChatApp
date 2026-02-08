@@ -56,6 +56,7 @@ export default function MessageInput() {
       conversationId,
       text,
       repliedMessage,
+      type: "text",
     });
 
     setText(""); // ✅ UI يمسح النص

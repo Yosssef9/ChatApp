@@ -9,18 +9,24 @@ export default function ChatList({
   searchInput,
   // activeChatUser,
   // getUserMessages,
-  openConversation,
+  onClick,
   isLoadingSearching,
   // isLoadingRecentChats,
   // typingUsers,
   // onlineUsersMap,
+  selectedConversationIds = new Set(),
+  toggleSelectConversation = null,
+  disableActive = false,
 }) {
   const onlineUsers = useChatStore((s) => s.onlineUsers);
   const typingUsers = useChatStore((s) => s.typingUsers);
   const recentChats = useChatStore((s) => s.recentChats);
   const activeChatUser = useChatStore((s) => s.activeChatUser);
   const isLoadingRecentChats = useChatStore((s) => s.isLoadingRecentChats);
-
+  const handleClick = (conversation) => {
+    if (toggleSelectConversation) return toggleSelectConversation(conversation); // ✅ forward mode
+    onClick(conversation); // ✅ normal mode
+  };
   const renderChats = (chats) =>
     chats.map((conversation) => {
       console.log("renderChats conversation", conversation);
@@ -34,10 +40,12 @@ export default function ChatList({
         >
           <ChatItem
             conversation={conversation}
-            onClick={() => openConversation(conversation)}
+            onClick={handleClick}
             isActive={conversation.user.id === activeChatUser?.user?.id}
             isTyping={typingUsers[conversation.id] || false}
             isOnline={!!onlineUsers[conversation.user.id]}
+            isSelected={selectedConversationIds.has(conversation.id)} // ✅ NEW
+            disableActive={disableActive}
           />
         </motion.div>
       );

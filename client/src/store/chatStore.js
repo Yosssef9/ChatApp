@@ -12,6 +12,25 @@ export const useChatStore = create((set, get) => ({
   socket: null,
   repliedMessage: null,
   isLoadingRecentChats: false,
+  isDeleteOpen: false,
+  deleteMessageId: null,
+  deleteIsMine: false,
+  isForwardOpen: false,
+  forwardMessageId: null,
+
+  openForward: (messageId) =>
+    set({ isForwardOpen: true, forwardMessageId: messageId }),
+  closeForward: () => set({ isForwardOpen: false, forwardMessageId: null }),
+
+  openDelete: (messageId, isMine) =>
+    set({
+      isDeleteOpen: true,
+      deleteMessageId: messageId,
+      deleteIsMine: isMine,
+    }),
+
+  closeDelete: () =>
+    set({ isDeleteOpen: false, deleteMessageId: null, deleteIsMine: false }),
   // 🔥 ACTIONS
   setActiveChatUser: (chat) => set({ activeChatUser: chat }),
 
@@ -84,18 +103,26 @@ export const useChatStore = create((set, get) => ({
     conversationId,
     text,
     repliedMessage,
+    type,
+    sourceMessageId,
   }) => {
+    console.log("sendMessage chatStore");
+    console.log("sendMessage fromUserId", fromUserId);
+    console.log("sendMessage toUserId", toUserId);
     const socket = get().socket;
     const setRepliedMessage = get().setRepliedMessage;
     const activeChatUser = get().activeChatUser;
     if (!activeChatUser) return;
+    console.log("sendMessage activeChatUser", activeChatUser);
     if (!socket || !fromUserId || !toUserId) return;
-    if (!text?.trim()) return;
+    if (type !== "forward" && !text?.trim()) return;
+    console.log("sendMessage chatStore 2");
 
     socket.emit("send-message", {
       msg: { from: fromUserId, to: toUserId, text },
       conversationId,
       repliedMessage: repliedMessage || null,
+      meta: { type, sourceMessageId },
     });
     setRepliedMessage(null);
   },

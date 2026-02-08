@@ -3,7 +3,8 @@ import MessageBubble from "./MessageBubble";
 import TypingDots from "./TypingDots";
 import { EMOJI_TO_REACTION } from "../Constants/reactions.js";
 import { useChatStore } from "@/store/chatStore";
-
+import ForwardDialog from "./ForwardDialog";
+import DeleteDialog from "./DeleteDialog";
 export default function MessageList({
   // socket,
   // messages,
@@ -22,6 +23,14 @@ export default function MessageList({
   const isTyping = typingUsers[activeChatUser.id];
   const bottomRef = useRef(null);
   const [openPickerId, setOpenPickerId] = useState(null);
+  const isForwardOpen = useChatStore((s) => s.isForwardOpen);
+  const forwardMessageId = useChatStore((s) => s.forwardMessageId);
+  const closeForward = useChatStore((s) => s.closeForward);
+  const isDeleteOpen = useChatStore((s) => s.isDeleteOpen);
+  const deleteMessageId = useChatStore((s) => s.deleteMessageId);
+  const deleteIsMine = useChatStore((s) => s.deleteIsMine);
+  const closeDelete = useChatStore((s) => s.closeDelete);
+
   console.log("MessageList socket", socket);
 
   const emojis = Object.keys(EMOJI_TO_REACTION);
@@ -100,7 +109,7 @@ export default function MessageList({
             openPicker={setOpenPickerId}
             emojis={emojis}
             onReact={handleEmojiClick}
-            onDeleteMsg={handleDeleteMsg}
+            // onDeleteMsg={handleDeleteMsg}
             // setRepliedMessage={setRepliedMessage}
             scrollToMessage={(repliedId) => {
               const el = messageRefs.current[repliedId];
@@ -124,6 +133,18 @@ export default function MessageList({
 
       {isTyping && <TypingDots />}
       <div ref={bottomRef} />
+      <ForwardDialog
+        isOpen={isForwardOpen}
+        onClose={closeForward}
+        messageToForwardId={forwardMessageId}
+      />
+      <DeleteDialog
+        msgId={deleteMessageId}
+        onDeleteMsg={handleDeleteMsg}
+        isOpen={isDeleteOpen}
+        onClose={closeDelete}
+        isMine={deleteIsMine}
+      />
     </div>
   );
 }

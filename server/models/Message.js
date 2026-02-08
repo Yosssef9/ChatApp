@@ -24,6 +24,23 @@ const messageSchema = new mongoose.Schema(
       type: [reactionSchema],
       default: [],
     },
+    forwardedFrom: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    forwardedMessage: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Message",
+      default: null,
+    },
+
+    // snapshot
+    forwardedText: {
+      type: String,
+      default: null,
+    },
     isDeleted: {
       type: Boolean,
       default: false,

@@ -6,6 +6,8 @@ export default function ChatItem({
   onClick,
   isTyping,
   isOnline,
+  isSelected = false,
+  disableActive = false,
 }) {
   const { user } = useAuth();
 
@@ -15,11 +17,15 @@ export default function ChatItem({
       className={`
         flex items-center gap-4 px-4 py-3 cursor-pointer
         transition-all duration-200
-        ${
-          isActive
-            ? "bg-blue-100 border-l-4 border-blue-500"
-            : "hover:bg-gray-100"
-        }
+          ${
+            isSelected
+              ? "bg-blue-200 border-b-4 border-blue-700"
+              : disableActive
+                ? "hover:bg-gray-100" // ❌ no active at all
+                : isActive
+                  ? "bg-blue-100 border-l-4 border-blue-500"
+                  : "hover:bg-gray-100"
+          }
       `}
     >
       {/* Avatar */}
