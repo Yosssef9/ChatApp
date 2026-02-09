@@ -182,6 +182,118 @@ export const chatSocket = (io, socket) => {
       socket.emit("receive-message", populatedMessage);
     },
   );
+  socket.on("edit-message", async ({ messageId, conversationId, newText }) => {
+    console.log("edit-message", { messageId, conversationId, newText });
+
+    const editorId = socket.userId; // ✅ زي ما بتعمل في send-message
+    if (!editorId) return;
+    if (!messageId || !conversationId) return;
+
+    const trimmed = (newText || "").trim();
+    if (!trimmed) return; // ممنوع رسالة فاضية
+
+    const message = await Message.findById(messageId);
+    if (!message) return;
+
+    // ✅ بس صاحب الرسالة يقدر يعدّل
+    if (message.from.toString() !== editorId) return;
+
+    // ✅ ممنوع تعديل رسالة محذوفة للجميع
+    if (message.isDeleted) return;
+
+    // ✅ (اختياري) لو الرسالة forward أو reply عادي لا مشكلة
+
+    // (اختياري) حفظ تاريخ التعديلات
+    message.editHistory = message.editHistory || [];
+    message.editHistory.push({
+      text: message.text || "",
+      editedAt: new Date(),
+    });
+
+    message.text = trimmed;
+    message.isEdited = true;
+    message.editedAt = new Date();
+    await message.save();
+
+    // ✅ رجّع نفس الشكل اللي بتستخدمه في receive-message
+    const populatedMessage = await Message.findById(message._id)
+      .populate("repliedMessage")
+      .populate("forwardedFrom", "username");
+
+    // ✅ ابعت تحديث للغرفة كلها (زي reaction-updated)
+    io.to(conversationId).emit("message-updated", populatedMessage);
+
+    // ✅ لو دي كانت آخر رسالة: حدّث Conversation + ابعت conversation-updated للطرفين
+    let convo = await Conversation.findById(conversationId).populate(
+      "members",
+      "username",
+    );
+
+    if (convo?.lastMessage?.toString() === messageId) {
+      // lastMessage هو ObjectId أصلاً للرسالة، مش نص
+      // بس لازم نعمل save عشان updatedAt يتغير
+      convo.lastMessage = message._id;
+      await convo.save();
+
+      // اعمل populate للـ lastMessage عشان lastMessage.text يبان
+      convo = await Conversation.findById(convo._id)
+        .populate("members", "username")
+        .populate("lastMessage");
+
+      const fromUserId = message.from.toString();
+      const toUserId = message.to.toString();
+
+      const receiverUser = convo.members.find(
+        (m) => m._id.toString() === toUserId,
+      );
+      const senderUser = convo.members.find(
+        (m) => m._id.toString() === fromUserId,
+      );
+
+      const unSeenMsgsNumber = await Message.countDocuments({
+        from: fromUserId,
+        to: toUserId,
+        isSeen: false,
+      });
+
+      const formattedConvoForReceiver = {
+        id: convo._id,
+        user: {
+          id: senderUser._id,
+          username: senderUser.username,
+        },
+        lastMessage: convo.lastMessage?.text || "",
+        updatedAt: convo.updatedAt,
+        unSeenMsgsNumber,
+      };
+
+      const formattedConvoForSender = {
+        ...formattedConvoForReceiver,
+        user: {
+          id: receiverUser?._id,
+          username: receiverUser?.username,
+        },
+        unSeenMsgsNumber: 0,
+      };
+
+      const onlineUsers = getOnlineUsers();
+      const receiverSocket = onlineUsers.get(toUserId);
+      const senderSocket = onlineUsers.get(fromUserId);
+
+      if (receiverSocket) {
+        io.to(receiverSocket).emit(
+          "conversation-updated",
+          formattedConvoForReceiver,
+        );
+      }
+      if (senderSocket) {
+        io.to(senderSocket).emit(
+          "conversation-updated",
+          formattedConvoForSender,
+        );
+      }
+    }
+  });
 
   socket.on(
     "send-reaction",

@@ -5,6 +5,7 @@ import { EMOJI_TO_REACTION } from "../Constants/reactions.js";
 import { useChatStore } from "@/store/chatStore";
 import ForwardDialog from "./ForwardDialog";
 import DeleteDialog from "./DeleteDialog";
+import EditDialog from "./EditDialog";
 export default function MessageList({
   // socket,
   // messages,
@@ -30,7 +31,9 @@ export default function MessageList({
   const deleteMessageId = useChatStore((s) => s.deleteMessageId);
   const deleteIsMine = useChatStore((s) => s.deleteIsMine);
   const closeDelete = useChatStore((s) => s.closeDelete);
-
+  const isEditOpen = useChatStore((s) => s.isEditOpen);
+  const editedMessage = useChatStore((s) => s.editedMessage);
+  const closeEdit = useChatStore((s) => s.closeEdit);
   console.log("MessageList socket", socket);
 
   const emojis = Object.keys(EMOJI_TO_REACTION);
@@ -66,9 +69,7 @@ export default function MessageList({
 
     const onReactionUpdated = (updatedMessage) => {
       console.log("onReactionUpdated updatedMessage", updatedMessage);
-      // setMessages((prev) =>
-      //   prev.map((m) => (m.id === updatedMessage.id ? updatedMessage : m)),
-      // );
+
       console.log("onReactionUpdated updatedMessage", updatedMessage);
 
       updateMessage(updatedMessage);
@@ -82,15 +83,22 @@ export default function MessageList({
     if (!socket) return;
 
     const onMessageDeleted = ({ updatedMessage }) => {
-      // setMessages((prev) =>
-      //   prev.map((m) => (m.id === message.id ? message : m)),
-      // );
       console.log("onMessageDeleted updatedMessage", updatedMessage);
       updateMessage(updatedMessage);
     };
 
     socket.on("message-deleted", onMessageDeleted);
     return () => socket.off("message-deleted", onMessageDeleted);
+  }, [socket, updateMessage]);
+  useEffect(() => {
+    if (!socket) return;
+
+    const onMessageUpdated = (updatedMessage) => {
+      updateMessage(updatedMessage);
+    };
+
+    socket.on("message-updated", onMessageUpdated);
+    return () => socket.off("message-updated", onMessageUpdated);
   }, [socket, updateMessage]);
 
   useEffect(() => {
@@ -144,6 +152,13 @@ export default function MessageList({
         isOpen={isDeleteOpen}
         onClose={closeDelete}
         isMine={deleteIsMine}
+      />
+
+      <EditDialog
+        key={editedMessage?.id || "no-msg"}
+        isOpen={isEditOpen}
+        onClose={closeEdit}
+        msg={editedMessage}
       />
     </div>
   );

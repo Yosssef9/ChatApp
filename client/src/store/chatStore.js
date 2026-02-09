@@ -17,7 +17,9 @@ export const useChatStore = create((set, get) => ({
   deleteIsMine: false,
   isForwardOpen: false,
   forwardMessageId: null,
+  isEditOpen: false,
 
+  editedMessage: null,
   openForward: (messageId) =>
     set({ isForwardOpen: true, forwardMessageId: messageId }),
   closeForward: () => set({ isForwardOpen: false, forwardMessageId: null }),
@@ -35,6 +37,8 @@ export const useChatStore = create((set, get) => ({
   setActiveChatUser: (chat) => set({ activeChatUser: chat }),
 
   setMessages: (msgs) => set({ messages: msgs }),
+  openEdit: (msg) => set({ isEditOpen: true, editedMessage: msg }),
+  closeEdit: () => set({ isEditOpen: false, editedMessage: null }),
   setRecentChats: (recentChats) => set({ recentChats: recentChats }),
   updateRecentChat: (updatedConvo) =>
     set((state) => {
@@ -144,5 +148,12 @@ export const useChatStore = create((set, get) => ({
     typingTimeout = setTimeout(() => {
       socket.emit("stop-typing", { conversationId, to });
     }, 1000);
+  },
+  editMessage: ({ messageId, conversationId, newText }) => {
+    console.log("chatstore editMessage tttttttttttttt");
+    const socket = get().socket;
+    if (!socket) return;
+
+    socket.emit("edit-message", { messageId, conversationId, newText });
   },
 }));

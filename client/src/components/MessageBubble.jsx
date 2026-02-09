@@ -8,8 +8,9 @@ import { useClickOutside } from "../hooks/useClickOutside";
 import { useAuth } from "../Context/AuthContext";
 import { motion } from "framer-motion";
 import { useChatStore } from "@/store/chatStore";
-
-import { FiCornerUpRight } from "react-icons/fi";
+import { FiCornerUpRight, FiEdit2 } from "react-icons/fi";
+import { MdDelete } from "react-icons/md";
+import { BiReply } from "react-icons/bi"; // مثال
 
 export default function MessageBubble({
   msg,
@@ -38,6 +39,7 @@ export default function MessageBubble({
   const isHiddenOrDeleted = msg.isDeleted || isHiddenForMe;
   const openForward = useChatStore((s) => s.openForward);
   const openDelete = useChatStore((s) => s.openDelete);
+  const openEdit = useChatStore((s) => s.openEdit);
 
   return (
     <div
@@ -50,6 +52,7 @@ export default function MessageBubble({
           className="flex"
           onMouseEnter={() => setShowArrow(true)}
           onMouseLeave={() => setShowArrow(false)}
+          onPointerDown={() => setShowArrow(true)}
         >
           {/* Emoji button (isMine) */}
           {isMine && !isHiddenOrDeleted && (
@@ -61,7 +64,7 @@ export default function MessageBubble({
           )}
           {/* Message bubble */}
           <div
-            className={`p-2 rounded-lg max-w-xs relative z-0 ${
+            className={`p-2 rounded-lg max-w-xs relative  ${
               isMine ? "bg-blue-500 text-white" : "bg-gray-200"
             }`}
             onClick={() => setShowArrow(true)}
@@ -76,14 +79,31 @@ export default function MessageBubble({
                   options={[
                     {
                       label: "Reply",
+                      icon: <BiReply />,
+
                       onClick: () => setRepliedMessage(msg),
                     },
+                    ...(isMine && !isHiddenOrDeleted
+                      ? [
+                          {
+                            label: "Edit",
+                            icon: <FiEdit2 />,
+                            onClick: () => {
+                              openEdit(msg);
+                            },
+                          },
+                        ]
+                      : []),
+
                     {
                       label: "Forward",
+                      icon: <FiCornerUpRight />,
+
                       onClick: () => openForward(msg.id),
                     },
                     {
                       label: "Delete",
+                      icon: <MdDelete />,
                       onClick: () => openDelete(msg.id, isMine),
                     },
                   ]}
@@ -155,20 +175,29 @@ export default function MessageBubble({
                 }}
               />
             )}
-            <div className="flex justify-end gap-1 text-xs">
-              {isMine && !isHiddenOrDeleted && (
+            <div className="flex items-center justify-end gap-2 text-xs">
+              {msg.isEdited && !isHiddenOrDeleted && (
                 <span
-                  className={msg.isSeen ? "text-cyan-300" : "text-white/60"}
+                  className={`text-sm ${isMine ? "text-white/70" : "text-gray-500"}`}
                 >
-                  {msg.isSeen ? <BsCheck2All /> : <BsCheck2 />}
+                  edited
                 </span>
               )}
-              <span className="text-gray-300">
-                {new Date(msg.createdAt).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
+              <div className="flex items-center gap-1">
+                {isMine && !isHiddenOrDeleted && (
+                  <span
+                    className={msg.isSeen ? "text-cyan-300" : "text-white/60"}
+                  >
+                    {msg.isSeen ? <BsCheck2All /> : <BsCheck2 />}
+                  </span>
+                )}
+                <span className="text-gray-300">
+                  {new Date(msg.createdAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
             </div>
           </div>
           {/* Emoji button (!isMine) */}
@@ -209,7 +238,10 @@ const EmojiButton = ({ isPickerOpen, msgId, openPicker }) => {
     <span className="opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 ease-out mx-2 flex items-center cursor-pointer">
       <IoMdHappy
         size={22}
-        onClick={() => openPicker(isPickerOpen ? null : msgId)}
+        onClick={(e) => {
+          e.stopPropagation(); // ✅ مهم
+          openPicker(isPickerOpen ? null : msgId);
+        }}
       />
     </span>
   );
@@ -244,31 +276,47 @@ const ContextMenu = ({ onClose, options, isMine, isFirstOrSecondMessage }) => {
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, scale: 0.85, y: -5 }}
+      initial={{ opacity: 0, scale: 0.96, y: -6 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.85, y: -5 }}
-      transition={{ duration: 0.15 }}
-      className={`absolute ${isFirstOrSecondMessage ? "top-full mt-2" : "bottom-full mb-2"} z-[9999] w-36 bg-white rounded-md shadow-lg overflow-hidden pointer-events: auto;
-        ${isMine ? "right-16" : "left-0"}`}
-      // style={{ outline: "1px solid black" }}
+      exit={{ opacity: 0, scale: 0.96, y: -6 }}
+      transition={{ duration: 0.14, ease: "easeOut" }}
+      className={[
+        "absolute z-[9999] w-44 bg-white rounded-xl shadow-xl overflow-hidden",
+        "border border-gray-100",
+        "backdrop-blur-sm",
+        isFirstOrSecondMessage ? "top-full mt-2" : "bottom-full mb-2",
+        isMine ? "right-2" : "left-2",
+      ].join(" ")}
+      onClick={(e) => e.stopPropagation()}
     >
-      {options.map((option) => {
+      {options.map((option, idx) => {
         const isDelete = option.label === "Delete";
+
         return (
-          <div
+          <button
             key={option.label}
-            className={`px-4 py-2 text-sm cursor-pointer ${
+            type="button"
+            className={[
+              "w-full flex items-center justify-between gap-3 cursor-pointer",
+              "px-3 py-2 text-sm",
+              "transition",
+              "focus:outline-none focus:bg-gray-100",
               isDelete
-                ? "text-red-500 hover:bg-red-100"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
+                ? "text-red-600 hover:bg-red-50"
+                : "text-gray-700 hover:bg-gray-100",
+              idx !== options.length - 1 ? "border-b border-gray-100" : "",
+            ].join(" ")}
             onClick={() => {
-              option.onClick();
-              onClose();
+              option.onClick?.();
+              onClose?.();
             }}
           >
-            {option.label}
-          </div>
+            <span className="font-medium">{option.label}</span>
+
+            {option.icon && (
+              <span className="text-base opacity-80">{option.icon}</span>
+            )}
+          </button>
         );
       })}
     </motion.div>

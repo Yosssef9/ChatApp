@@ -33,13 +33,10 @@ export default function ForwardDialog({ isOpen, onClose, messageToForwardId }) {
         toUserId: convo.user.id,
         conversationId: convo.id,
 
-        // forward: النص مش مطلوب هنا لو السيرفر هيجيب النص من sourceMessageId
-        text: " ", // 👈 مهم لو عندك validation text.trim() (هقولك تحسنها تحت)
+        text: " ",
         repliedMessage: null,
         type: "forward",
 
-        // لازم كمان تبعت id بتاع الرسالة اللي بتعملها forward
-        // هنضيفه في sendMessage function في الستور (الخطوة الجاية)
         sourceMessageId: messageToForwardId,
       });
     });
@@ -66,40 +63,44 @@ export default function ForwardDialog({ isOpen, onClose, messageToForwardId }) {
 
           {/* Dialog */}
           <motion.div
-            className="fixed z-50 top-1/2 left-1/2 -translate-x-[50%]  sm:-translate-x-[10%] -translate-y-1/2 rounded-lg shadow-lg w-80 max-w-full p-5 bg-white"
+            className={[
+              "fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
+              "bg-white rounded-2xl shadow-xl",
+              "w-[92vw] max-w-sm sm:w-[420px]",
+              "max-h-[85vh]",
+              "p-4 sm:p-5",
+              "flex flex-col",
+            ].join(" ")}
             initial={{ opacity: 0, y: -50, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -50, scale: 0.95 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
           >
-            <div className="flex flex-col bg-white py-5 rounded-2xl gap-6 flex-1 min-h-0">
-              <div className="flex items-center justify-between mb-2">
-                <div className="font-semibold">Forward to</div>
-                <div className="text-sm text-gray-500">
-                  Selected: {selectedConvos.length}
-                </div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-semibold">Forward to</div>
+              <div className="text-sm text-gray-500">
+                Selected: {selectedConvos.length}
               </div>
-              {/* Search */}
-              <SearchUsersInput
-                searchInput={searchInput}
-                setSearchInput={setSearchInput}
-              />
+            </div>
 
-              {/* Chat List */}
+            <SearchUsersInput
+              searchInput={searchInput}
+              setSearchInput={setSearchInput}
+            />
 
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-gray-100 mt-3">
               <ChatList
                 results={results}
                 searchInput={searchInput}
                 onClick={() => {}}
                 isLoadingSearching={isLoadingSearching}
-                selectedConversationIds={selectedIds} // ✅ NEW
-                toggleSelectConversation={toggleSelectConversation} // ✅ NEW
+                selectedConversationIds={selectedIds}
+                toggleSelectConversation={toggleSelectConversation}
                 disableActive={true}
               />
             </div>
 
-            {/* زر Cancel تحت */}
-            <div className="flex gap-2 mt-3">
+            <div className="mt-3 flex gap-2 pt-3 border-t">
               <button
                 className={`flex-1 px-4 py-2 rounded text-white ${
                   selectedIds.size

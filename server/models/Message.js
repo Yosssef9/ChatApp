@@ -41,6 +41,10 @@ const messageSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    isEdited: { type: Boolean, default: false },
+    editedAt: { type: Date, default: null },
+    editHistory: [{ text: String, editedAt: Date }],
+
     isDeleted: {
       type: Boolean,
       default: false,
